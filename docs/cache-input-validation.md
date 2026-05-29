@@ -142,6 +142,18 @@ cache.invalidate("bad@pattern").await?;
 
 Built-in keys from `cache_key_*()` helpers always pass validation.
 
+## Adding New Cache Operations
+
+When adding a Redis-backed cache path, keep validation at the public boundary so invalid input fails before memory-cache mutation, circuit-breaker execution, or Redis I/O:
+
+1. Validate exact keys with `CacheValidator::validate_key`.
+2. Validate prefix invalidation inputs with `CacheValidator::validate_pattern`.
+3. Validate the serialized payload bytes with `CacheValidator::validate_value_size`.
+4. Validate caller-supplied TTLs with `CacheValidator::validate_ttl`, or use `validate_entry` when key, value, and optional TTL are available together.
+5. Convert `ValidationError` into the cache layer's external error type without leaking raw payload contents.
+
+Prefer helper functions for generated keys (for example `cache_key_status_counts`) so callers do not need to assemble Redis key strings by hand.
+
 ## Error Types
 
 ```rust

@@ -9,14 +9,14 @@
 //!
 //! | Input | Constraint | Rationale |
 //! |-------|------------|-----------|
-//! | Key | 1–512 bytes, `[A-Za-z0-9_:.-]` | Prevents oversized keys and injection via key namespace |
+//! | Key | 1–512 bytes, `[A-Za-z0-9_:-]` | Prevents oversized keys and injection via key namespace |
 //! | Value | ≤ 512 MiB | Bounds memory and network use per entry |
 //! | TTL | Positive `i64` seconds | Ensures `SET EX` receives a valid expiry |
 //! | Pattern | Same charset as keys plus optional trailing `*` | Safe `KEYS` / scan-style invalidation |
 //!
 //! # Security
 //!
-//! - Rejects empty keys and keys with characters outside the allowlist (e.g. spaces, `@`, `#`).
+//! - Rejects empty keys and keys with characters outside the allowlist (e.g. spaces, `.`, `@`, `#`).
 //! - Caps key and value size before serialization or Redis I/O.
 //! - Rejects non-positive TTL to avoid ambiguous expiry behavior.
 //!
@@ -224,6 +224,13 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_key_rejects_dot_space_and_unicode() {
+        assert!(CacheValidator::validate_key("key.with.dot").is_err());
+        assert!(CacheValidator::validate_key("key with space").is_err());
+        assert!(CacheValidator::validate_key("cache:ключ").is_err());
+    }
+
+    #[test]
     fn test_validate_pattern_valid() {
         assert!(CacheValidator::validate_pattern("query:status_counts").is_ok());
         assert!(CacheValidator::validate_pattern("query:daily_totals:*").is_ok());
@@ -232,8 +239,15 @@ mod tests {
     #[test]
     fn test_validate_pattern_invalid_wildcard() {
         assert!(CacheValidator::validate_pattern("query:*:totals").is_err());
+        assert!(CacheValidator::validate_pattern("query:totals**").is_err());
         assert!(CacheValidator::validate_pattern("*").is_err());
         assert!(CacheValidator::validate_pattern("").is_err());
+    }
+
+    #[test]
+    fn test_validate_pattern_rejects_key_invalid_characters() {
+        assert!(CacheValidator::validate_pattern("query:daily totals:*").is_err());
+        assert!(CacheValidator::validate_pattern("query.daily_totals:*").is_err());
     }
 
     #[test]
