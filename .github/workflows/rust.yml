@@ -18,6 +18,12 @@ env:
   SCCACHE_CACHE_SIZE: 1G
   COVERAGE_IGNORE_REGEX: '(^|.*/)(tests?/.*|generated/.*|\.sqlx/.*)$'
 
+# Cancel in-progress runs for the same branch/PR to avoid wasted runner time
+# and stale session state from concurrent jobs sharing the same cache keys.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
@@ -26,6 +32,10 @@ jobs:
       fail-fast: false
       matrix:
         rust: [stable]
+
+    # Limit job-level permissions to the minimum required.
+    permissions:
+      contents: read
 
     services:
       postgres:
@@ -54,6 +64,11 @@ jobs:
 
     - name: Install sccache
       uses: taiki-e/install-action@sccache
+
+    # Restore the sccache daemon session between runs so the compiler-cache
+    # hit rate is maximised without leaking state across unrelated branches.
+    - name: Start sccache session
+      run: sccache --start-server || true
 
     - name: Cache Cargo registry and build artifacts
       uses: actions/cache@v4
@@ -178,6 +193,9 @@ jobs:
       fail-fast: false
       matrix:
         rust: [stable]
+
+    permissions:
+      contents: read
 
     services:
       postgres:
